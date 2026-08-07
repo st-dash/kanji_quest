@@ -1,6 +1,8 @@
 /* ===== Reset & Base ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html { font-size: 19px; }
+
 body {
     background: #0f0e17;
     color: #fffffe;
@@ -104,6 +106,19 @@ body {
 .btn:active { transform: translateY(0); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.btn-reset {
+    background: none;
+    border: none;
+    font-family: inherit;
+    color: #6b6b80;
+    font-size: 0.72rem;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-top: 14px;
+    padding: 6px;
+}
+.btn-reset:hover { color: #e74c3c; }
+
 /* ===== Generic Panel ===== */
 .panel {
     background: rgba(255,255,255,0.04);
@@ -181,6 +196,25 @@ body {
 
 /* ===== Stage Grid ===== */
 .stage-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+.dex-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.dex-item {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 10px;
+    font-size: 1.3rem;
+    color: #fffffe;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.dex-item:hover { border-color: #f7d774; background: rgba(247,215,116,0.1); transform: translateY(-2px); }
+.dex-item.learned { border-color: #2ecc71; background: rgba(46,204,113,0.08); }
+.dex-item .dex-star { position: absolute; top: 1px; right: 3px; font-size: 0.5rem; }
 
 .stage-card {
     background: rgba(255,255,255,0.04);

@@ -23,7 +23,10 @@
         <button class="btn btn-primary" onclick="startDailyBattle()">🔥 今日の特訓へ</button>
         <button class="btn btn-secondary" onclick="openMap()">🗺️ ステージマップ</button>
         <button class="btn btn-secondary" onclick="openNotebook()">📕 まちがいノート</button>
+        <button class="btn btn-secondary" onclick="openKanjiDex()">📖 漢字ずかん（5年生193字）</button>
+        <button class="btn btn-secondary" onclick="openReviewMap()">📘 1〜4年生の漢字おさらい</button>
         <button class="btn btn-secondary" onclick="showHowToPlay()">あそびかた ？</button>
+        <button class="btn-reset" onclick="resetAllProgress()">🗑️ 学習データをリセット</button>
     </div>
 </div>
 
@@ -94,6 +97,18 @@
     <div class="stage-grid" id="stageGrid"></div>
     <div style="text-align:center;margin-top:16px">
         <button class="btn btn-secondary" onclick="show('titleScreen')">タイトルへ</button>
+    </div>
+</div>
+
+<!-- ========== 1〜4年生 漢字おさらい 学年マップ画面 ========== -->
+<div id="reviewMapScreen" class="screen">
+    <div class="panel" style="margin-top:30px">
+        <h2 class="map-title" style="margin-bottom:4px">📘 1〜4年生 漢字おさらい</h2>
+        <p style="color:#b8b8d1;font-size:0.85rem;text-align:center;margin-bottom:16px">学年をえらんで、これまで習った漢字をおさらいしよう！</p>
+        <div class="stage-grid" id="reviewGradeGrid"></div>
+        <div style="text-align:center;margin-top:16px">
+            <button class="btn btn-secondary" onclick="show('titleScreen')">タイトルへ</button>
+        </div>
     </div>
 </div>
 
@@ -205,6 +220,39 @@
     </div>
 </div>
 
+<!-- ========== 漢字ずかん 一覧画面 ========== -->
+<div id="kanjiDexScreen" class="screen">
+    <div class="panel" style="margin-top:30px">
+        <h2 class="map-title" style="margin-bottom:4px">📖 漢字ずかん</h2>
+        <p style="color:#b8b8d1;font-size:0.85rem;text-align:center;margin-bottom:16px">5年生193字、いつでも見返せるよ。⭐は覚えた漢字。</p>
+        <div class="dex-grid" id="dexGrid"></div>
+        <div style="text-align:center;margin-top:16px">
+            <button class="btn btn-secondary" onclick="show('titleScreen')">タイトルへ</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 漢字ずかん 詳細画面 ========== -->
+<div id="kanjiDexDetailScreen" class="screen">
+    <div class="panel" style="margin-top:30px">
+        <div class="q-progress" id="dexKanjiCounter">1 / 193</div>
+        <div class="synth-stage" id="dexSynthStage">
+            <div class="synth-result" id="dexSynthResult"></div>
+        </div>
+        <div style="text-align:center;margin-bottom:12px">
+            <button class="btn btn-secondary synth-replay-btn" id="dexReplayBtn" onclick="replayDexSynthesis()" style="display:none">🔁 もう一度見る</button>
+        </div>
+        <div class="kanji-info-card" id="dexKanjiInfoCard"></div>
+        <div class="intro-buttons">
+            <button class="btn btn-secondary" onclick="prevDexKanji()">◀ 前の漢字</button>
+            <button class="btn btn-secondary" onclick="nextDexKanji()">次の漢字 ▶</button>
+        </div>
+        <div style="text-align:center;margin-top:10px">
+            <button class="btn btn-primary" onclick="show('kanjiDexScreen')">ずかん一覧へ</button>
+        </div>
+    </div>
+</div>
+
 <!-- ========== 全漢字マスター画面 ========== -->
 <div id="allMasteredScreen" class="screen">
     <div class="clear-wrap">
@@ -219,6 +267,7 @@
 </div>
 
 <script src="data.js"></script>
+<script src="review-data.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

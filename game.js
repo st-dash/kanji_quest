@@ -76,8 +76,9 @@ function markLearned(kanjiId) {
 
 // ===== ゲーム状態（バトル中のみ有効） =====
 const gs = {
-    mode: null,          // 'daily' | 'stage' | 'review'
+    mode: null,          // 'daily' | 'stage' | 'review' | 'reviewGrade'
     stageId: null,
+    reviewGrade: null,
     playerHp: 100, playerMaxHp: 100,
     enemyHp: 0, enemyMaxHp: 0,
     qIdx: 0,
@@ -283,6 +284,190 @@ function startNotebookReview() {
     beginBattle();
 }
 
+// ===== 1〜4年生 漢字おさらい =====
+const REVIEW_STORAGE_KEY = 'kanji-quest-review-progress-v1';
+const REVIEW_BATCH_SIZE = 10;
+
+function defaultReviewProgress() {
+    return { masteredIds: [], totalCorrect: 0, totalAnswered: 0 };
+}
+function loadReviewProgress() {
+    try {
+        const raw = localStorage.getItem(REVIEW_STORAGE_KEY);
+        if (!raw) return defaultReviewProgress();
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed.masteredIds)) return defaultReviewProgress();
+        return Object.assign(defaultReviewProgress(), parsed);
+    } catch (e) {
+        return defaultReviewProgress();
+    }
+}
+function saveReviewProgress() {
+    localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(reviewProgress));
+}
+let reviewProgress = loadReviewProgress();
+
+function openReviewMap() {
+    renderReviewMap();
+    show('reviewMapScreen');
+}
+
+function renderReviewMap() {
+    const grid = document.getElementById('reviewGradeGrid');
+    grid.innerHTML = '';
+    REVIEW_GRADES.forEach(g => {
+        const pool = REVIEW_KANJI_LIST.filter(k => k.grade === g.grade);
+        const masteredInGrade = pool.filter(k => reviewProgress.masteredIds.includes(k.id)).length;
+        const allMastered = pool.length > 0 && masteredInGrade === pool.length;
+
+        const card = document.createElement('div');
+        card.className = 'stage-card' + (allMastered ? ' cleared' : '');
+        card.innerHTML = `
+            <div class="stage-icon">${g.icon}</div>
+            <div class="stage-name">${g.name}</div>
+            <div class="stage-skill">${pool.length}字のエリア</div>
+            <div class="stage-status">${allMastered ? '⭐ マスター済み' : `覚えた: ${masteredInGrade}/${pool.length}`}</div>`;
+        card.addEventListener('click', () => startGradeReviewBattle(g.grade));
+        grid.appendChild(card);
+    });
+}
+
+function startGradeReviewBattle(grade) {
+    gs.mode = 'reviewGrade';
+    gs.reviewGrade = grade;
+    gs.queue = buildGradeReviewQueue(grade);
+    beginBattle();
+}
+
+function buildGradeReviewQueue(grade) {
+    const pool = REVIEW_KANJI_LIST.filter(k => k.grade === grade).map(k => k.id);
+    const notMastered = pool.filter(id => !reviewProgress.masteredIds.includes(id));
+    const source = notMastered.length ? notMastered : pool;
+    const ids = shuffle(source).slice(0, Math.min(REVIEW_BATCH_SIZE, source.length));
+    return ids.map(id => makeReviewQuizItem(id));
+}
+
+function makeReviewQuizItem(kanjiId) {
+    const k = REVIEW_KANJI_BY_ID[kanjiId];
+    const types = ['reading', 'meaning', 'fillBlank'];
+    const quizType = types[Math.floor(Math.random() * types.length)];
+    const compound = k.compounds[Math.floor(Math.random() * k.compounds.length)];
+
+    if (quizType === 'reading') {
+        const distractors = pickReviewDistractorReadings(compound.reading, 3);
+        const choices = shuffle([compound.reading, ...distractors]);
+        return {
+            type: 'quiz', kanjiId, isReview: true, quizType,
+            question: `「${compound.word}」の読み方は？`,
+            choices, answer: compound.reading,
+            explanation: `「${compound.word}」は「${compound.reading}」と読む。${compound.sentence}`,
+        };
+    }
+    if (quizType === 'meaning') {
+        const distractors = pickReviewConfusableChars(k, 3);
+        const choices = shuffle([k.kanji, ...distractors]);
+        return {
+            type: 'quiz', kanjiId, isReview: true, quizType,
+            question: `つぎの意味を表す漢字は？\n「${k.meaning}」`,
+            choices, answer: k.kanji,
+            explanation: `正解は「${k.kanji}」。音読み: ${k.onyomi.join('、') || 'なし'}／訓読み: ${k.kunyomi.join('、') || 'なし'}`,
+        };
+    }
+    const distractors = pickReviewConfusableChars(k, 3);
+    const choices = shuffle([k.kanji, ...distractors]);
+    const blanked = compound.sentence.split(k.kanji).join('＿');
+    return {
+        type: 'quiz', kanjiId, isReview: true, quizType,
+        question: `${blanked}\n＿に入る漢字は？`,
+        choices, answer: k.kanji,
+        explanation: `正解は「${k.kanji}」。「${compound.word}（${compound.reading}）」だね。`,
+    };
+}
+
+function pickReviewConfusableChars(k, n) {
+    const pool = REVIEW_KANJI_LIST.map(x => x.id).filter(id => id !== k.id);
+    return shuffle(pool).slice(0, n).map(id => REVIEW_KANJI_BY_ID[id].kanji);
+}
+
+function pickReviewDistractorReadings(correctReading, n) {
+    const pool = [];
+    REVIEW_KANJI_LIST.forEach(k => k.compounds.forEach(c => { if (c.reading !== correctReading) pool.push(c.reading); }));
+    const used = new Set([correctReading]);
+    const result = [];
+    while (result.length < n && pool.length) {
+        const idx = Math.floor(Math.random() * pool.length);
+        const r = pool.splice(idx, 1)[0];
+        if (!used.has(r)) { used.add(r); result.push(r); }
+    }
+    return result;
+}
+
+// ===== 漢字ずかん（いつでも振り返り） =====
+const DEX_SYNTH_IDS = { stage: 'dexSynthStage', result: 'dexSynthResult', card: 'dexKanjiInfoCard', replayBtn: 'dexReplayBtn' };
+let currentDexKanjiId = null;
+
+function openKanjiDex() {
+    renderDexGrid();
+    show('kanjiDexScreen');
+}
+
+function renderDexGrid() {
+    const grid = document.getElementById('dexGrid');
+    grid.innerHTML = '';
+    KANJI_LIST.forEach(k => {
+        const learned = progress.learnedIds.includes(k.id);
+        const item = document.createElement('div');
+        item.className = 'dex-item' + (learned ? ' learned' : '');
+        item.innerHTML = `${k.kanji}${learned ? '<span class="dex-star">⭐</span>' : ''}`;
+        item.addEventListener('click', () => openDexDetail(k.id));
+        grid.appendChild(item);
+    });
+}
+
+function openDexDetail(kanjiId) {
+    currentDexKanjiId = kanjiId;
+    renderDexDetail();
+    show('kanjiDexDetailScreen');
+}
+
+function renderDexDetail() {
+    const k = KANJI_BY_ID[currentDexKanjiId];
+    document.getElementById('dexKanjiInfoCard').classList.remove('show');
+    document.getElementById('dexKanjiInfoCard').innerHTML = '';
+    document.getElementById('dexReplayBtn').style.display = 'none';
+    const idx = KANJI_LIST.findIndex(x => x.id === currentDexKanjiId);
+    document.getElementById('dexKanjiCounter').textContent = `${idx + 1} / ${KANJI_LIST.length}`;
+    runSynthesisAnimation(k, DEX_SYNTH_IDS);
+}
+
+function replayDexSynthesis() {
+    if (currentDexKanjiId == null) return;
+    const k = KANJI_BY_ID[currentDexKanjiId];
+    document.getElementById('dexKanjiInfoCard').classList.remove('show');
+    document.getElementById('dexReplayBtn').style.display = 'none';
+    runSynthesisAnimation(k, DEX_SYNTH_IDS);
+}
+
+function prevDexKanji() {
+    const idx = KANJI_LIST.findIndex(k => k.id === currentDexKanjiId);
+    openDexDetail(KANJI_LIST[(idx - 1 + KANJI_LIST.length) % KANJI_LIST.length].id);
+}
+function nextDexKanji() {
+    const idx = KANJI_LIST.findIndex(k => k.id === currentDexKanjiId);
+    openDexDetail(KANJI_LIST[(idx + 1) % KANJI_LIST.length].id);
+}
+
+// ===== 学習データのリセット =====
+function resetAllProgress() {
+    const ok = confirm('学習データを全てリセットします。\n（覚えた漢字・まちがいノート・連続日数・おさらいの進捗が全て消えます）\n\nよろしいですか？');
+    if (!ok) return;
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(REVIEW_STORAGE_KEY);
+    progress = defaultProgress();
+    reviewProgress = defaultReviewProgress();
+    alert('学習データをリセットしました。');
+}
+
 // ===== バトル共通処理 =====
 function beginBattle() {
     if (gs.queue.length === 0) {
@@ -309,11 +494,13 @@ function beginBattle() {
 function currentEnemy() {
     if (gs.mode === 'stage') return STAGES[gs.stageId].enemy;
     if (gs.mode === 'daily') return { name: '今日のもののけ', sprite: '👻' };
+    if (gs.mode === 'reviewGrade') return REVIEW_GRADES.find(g => g.grade === gs.reviewGrade).enemy;
     return { name: '思い出しの影', sprite: '🌑' };
 }
 function currentChipLabel() {
     if (gs.mode === 'stage') { const s = STAGES[gs.stageId]; return `${s.icon} ${s.name}`; }
     if (gs.mode === 'daily') return '🔥 今日の特訓';
+    if (gs.mode === 'reviewGrade') { const g = REVIEW_GRADES.find(g => g.grade === gs.reviewGrade); return `${g.icon} ${g.name} おさらい`; }
     return '📕 まちがいノート復習';
 }
 
@@ -346,6 +533,8 @@ function makeIntroItem(kanjiId) { return { type: 'intro', kanjiId }; }
 let currentIntroKanjiId = null;
 let synthTimers = [];
 
+const BATTLE_SYNTH_IDS = { stage: 'synthStage', result: 'synthResult', card: 'kanjiInfoCard', replayBtn: 'synthReplayBtn' };
+
 function renderIntro(item) {
     currentIntroKanjiId = item.kanjiId;
     const k = KANJI_BY_ID[item.kanjiId];
@@ -354,7 +543,7 @@ function renderIntro(item) {
     card.classList.remove('show');
     card.innerHTML = '';
     document.getElementById('synthReplayBtn').style.display = 'none';
-    runSynthesisAnimation(k);
+    runSynthesisAnimation(k, BATTLE_SYNTH_IDS);
 }
 
 function replaySynthesis() {
@@ -362,16 +551,16 @@ function replaySynthesis() {
     const k = KANJI_BY_ID[currentIntroKanjiId];
     document.getElementById('kanjiInfoCard').classList.remove('show');
     document.getElementById('synthReplayBtn').style.display = 'none';
-    runSynthesisAnimation(k);
+    runSynthesisAnimation(k, BATTLE_SYNTH_IDS);
 }
 
-function runSynthesisAnimation(k) {
+function runSynthesisAnimation(k, ids) {
     synthTimers.forEach(t => clearTimeout(t));
     synthTimers = [];
 
-    const stage = document.getElementById('synthStage');
+    const stage = document.getElementById(ids.stage);
     stage.querySelectorAll('.synth-part, .synth-part-label').forEach(el => el.remove());
-    const resultEl = document.getElementById('synthResult');
+    const resultEl = document.getElementById(ids.result);
     resultEl.textContent = '';
     resultEl.classList.remove('show');
 
@@ -410,13 +599,13 @@ function runSynthesisAnimation(k) {
     synthTimers.push(setTimeout(() => {
         resultEl.textContent = k.kanji;
         resultEl.classList.add('show');
-        showKanjiInfoCard(k);
-        document.getElementById('synthReplayBtn').style.display = 'inline-block';
+        showKanjiInfoCard(k, ids.card);
+        document.getElementById(ids.replayBtn).style.display = 'inline-block';
     }, 3000));
 }
 
-function showKanjiInfoCard(k) {
-    const card = document.getElementById('kanjiInfoCard');
+function showKanjiInfoCard(k, cardId) {
+    const card = document.getElementById(cardId);
     const compoundsHtml = k.compounds
         .map(c => `<span class="compound-chip"><b>${c.word}</b>（${c.reading}）… ${c.sentence}</span>`)
         .join('');
@@ -525,25 +714,37 @@ function onQuizAnswer(item, chosen) {
         else if (btn.textContent === chosen && !correct) btn.classList.add('wrong');
     });
 
-    markLearned(item.kanjiId);
-    const dmgPerQ = Math.ceil(gs.enemyMaxHp / Math.max(1, gs.quizCount));
+    if (item.isReview) {
+        if (correct && !reviewProgress.masteredIds.includes(item.kanjiId)) {
+            reviewProgress.masteredIds.push(item.kanjiId);
+        }
+        reviewProgress.totalAnswered++;
+        if (correct) reviewProgress.totalCorrect++;
+        saveReviewProgress();
+    } else {
+        markLearned(item.kanjiId);
+        if (correct) {
+            if (item.source === 'review' || item.source === 'reinforce') onReviewCorrect(item.kanjiId);
+        } else {
+            onReviewWrong(item.kanjiId);
+        }
+        progress.totalAnswered++;
+        if (correct) progress.totalCorrect++;
+        saveProgress();
+    }
 
+    const dmgPerQ = Math.ceil(gs.enemyMaxHp / Math.max(1, gs.quizCount));
     if (correct) {
         gs.correctCount++;
         gs.enemyHp = Math.max(0, gs.enemyHp - dmgPerQ);
-        if (item.source === 'review' || item.source === 'reinforce') onReviewCorrect(item.kanjiId);
         popDamage(`-${dmgPerQ}!!`, false);
         shakeEnemy();
     } else {
         gs.playerHp = Math.max(0, gs.playerHp - 12);
-        onReviewWrong(item.kanjiId);
         popDamage('-12', true);
         flashPlayer();
     }
 
-    progress.totalAnswered++;
-    if (correct) progress.totalCorrect++;
-    saveProgress();
     updateBattleHPs();
     showFeedback(correct, item.explanation);
 }
@@ -606,24 +807,42 @@ function showClear() {
     const reviewCount = gs.queue.filter(i => i.type === 'quiz' && i.source === 'review').length;
 
     let title = '⭐ クリア！ ⭐';
-    if (gs.mode === 'stage') title = `⭐ ${STAGES[gs.stageId].name} クリア！ ⭐`;
-    else if (gs.mode === 'daily') title = '🔥 今日の特訓 終了！ 🔥';
-    else title = '📕 復習おわり！ 📕';
+    let extraRows = `
+            <div class="score-row"><span>新しく覚えた漢字</span><span style="color:#f7d774">${newCount}字</span></div>
+            <div class="score-row"><span>復習した漢字</span><span style="color:#a8d8ea">${reviewCount}字</span></div>`;
+    let skillUp = '';
+
+    if (gs.mode === 'stage') {
+        title = `⭐ ${STAGES[gs.stageId].name} クリア！ ⭐`;
+    } else if (gs.mode === 'daily') {
+        title = '🔥 今日の特訓 終了！ 🔥';
+        skillUp = `<div class="skill-up">🔥 ${progress.streak}日連続達成！</div>`;
+    } else if (gs.mode === 'reviewGrade') {
+        const g = REVIEW_GRADES.find(x => x.grade === gs.reviewGrade);
+        const pool = REVIEW_KANJI_LIST.filter(k => k.grade === gs.reviewGrade);
+        const masteredInGrade = pool.filter(k => reviewProgress.masteredIds.includes(k.id)).length;
+        title = `📘 ${g.name} おさらい終了！ 📘`;
+        extraRows = `<div class="score-row"><span>マスターした漢字</span><span style="color:#f7d774">${masteredInGrade} / ${pool.length}字</span></div>`;
+    } else {
+        title = '📕 復習おわり！ 📕';
+    }
     document.getElementById('clearTitle').textContent = title;
 
     document.getElementById('clearContent').innerHTML = `
         <div class="score-box">
             <div class="score-row"><span>正解数</span><span style="color:#2ecc71;font-weight:bold">${gs.correctCount} / ${gs.quizCount}</span></div>
-            <div class="score-row"><span>新しく覚えた漢字</span><span style="color:#f7d774">${newCount}字</span></div>
-            <div class="score-row"><span>復習した漢字</span><span style="color:#a8d8ea">${reviewCount}字</span></div>
+            ${extraRows}
             <div class="score-row"><span>HP回復</span><span style="color:#2ecc71">＋20</span></div>
         </div>
-        ${gs.mode === 'daily' ? `<div class="skill-up">🔥 ${progress.streak}日連続達成！</div>` : ''}`;
+        ${skillUp}`;
 
     const nextBtn = document.getElementById('clearNextBtn');
     if (gs.mode === 'stage') {
         nextBtn.textContent = 'マップへもどる 🗺️';
         nextBtn.onclick = backToMap;
+    } else if (gs.mode === 'reviewGrade') {
+        nextBtn.textContent = 'おさらいマップへ 📘';
+        nextBtn.onclick = openReviewMap;
     } else {
         nextBtn.textContent = 'タイトルへもどる 🏠';
         nextBtn.onclick = () => show('titleScreen');
