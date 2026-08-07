@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漢字クエスト 〜部首の勇者〜</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ========== タイトル画面 ========== -->
+<div id="titleScreen" class="screen">
+    <div class="title-wrap">
+        <div class="title-deco">⚔️ 🈴 ⚔️</div>
+        <h1 class="game-title">漢字<br>クエスト</h1>
+        <p class="game-subtitle">〜 部首の勇者 〜</p>
+        <div class="title-story">
+            小学5年生の193字が眠る王国に、<br>
+            「丸暗記の霧」が立ちこめている。<br>
+            漢字をパーツに分解し、熟語で使いこなす力で<br>
+            霧を晴らす勇者になろう！
+        </div>
+        <button class="btn btn-primary" onclick="startDailyBattle()">🔥 今日の特訓へ</button>
+        <button class="btn btn-secondary" onclick="openMap()">🗺️ ステージマップ</button>
+        <button class="btn btn-secondary" onclick="openNotebook()">📕 まちがいノート</button>
+        <button class="btn btn-secondary" onclick="showHowToPlay()">あそびかた ？</button>
+    </div>
+</div>
+
+<!-- ========== あそびかた画面 ========== -->
+<div id="howToPlayScreen" class="screen">
+    <div class="panel" style="margin-top:40px">
+        <h2>📖 あそびかた</h2>
+        <div class="howto-list">
+            <div class="howto-item">
+                <span class="howto-icon">🔥</span>
+                <div>
+                    <strong>まずは「今日の特訓」</strong>
+                    <p>1日5〜10問、新しい漢字と復習をまとめて出題。毎日続けよう！</p>
+                </div>
+            </div>
+            <div class="howto-item">
+                <span class="howto-icon">🧩</span>
+                <div>
+                    <strong>パーツで漢字を覚えよう</strong>
+                    <p>新しい漢字はパーツが合体するアニメで登場。丸暗記じゃなく形で覚えよう。</p>
+                </div>
+            </div>
+            <div class="howto-item">
+                <span class="howto-icon">✍️</span>
+                <div>
+                    <strong>1回だけ書いて、テストする</strong>
+                    <p>10回書くより、1回ていねいに書いて思い出すテストの方が身につくよ。</p>
+                </div>
+            </div>
+            <div class="howto-item">
+                <span class="howto-icon">📕</span>
+                <div>
+                    <strong>まちがいノートで復習</strong>
+                    <p>まちがえた漢字は1日後・3日後・7日後に再登場。ぜんぶ正解でマスター！</p>
+                </div>
+            </div>
+            <div class="howto-item">
+                <span class="howto-icon">❤️</span>
+                <div>
+                    <strong>HPに気をつけよう</strong>
+                    <p>まちがえると自分のHPが12へる。ゼロになるとやりなおし。</p>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="show('titleScreen')">もどる</button>
+    </div>
+</div>
+
+<!-- ========== マップ画面 ========== -->
+<div id="mapScreen" class="screen">
+    <div class="map-header">
+        <div class="player-info">
+            <div class="player-avatar">🧙</div>
+            <div class="player-stats">
+                <div class="player-name">部首の勇者</div>
+                <div class="hp-row">
+                    <span>HP</span>
+                    <div class="hp-track"><div class="hp-fill" id="mapHpFill" style="width:100%"></div></div>
+                    <span id="mapHpText">100/100</span>
+                </div>
+                <div class="level-text" id="mapLevel">覚えた漢字: 0 / 193字</div>
+            </div>
+        </div>
+        <div class="streak-badge">🔥 <span id="mapStreak">0</span>日連続</div>
+    </div>
+
+    <h2 class="map-title">🗺️ 漢字の王国マップ</h2>
+    <div class="stage-grid" id="stageGrid"></div>
+    <div style="text-align:center;margin-top:16px">
+        <button class="btn btn-secondary" onclick="show('titleScreen')">タイトルへ</button>
+    </div>
+</div>
+
+<!-- ========== ステージ紹介画面 ========== -->
+<div id="stageIntroScreen" class="screen">
+    <div class="panel" style="margin-top:30px">
+        <div id="introContent"></div>
+        <div class="intro-buttons">
+            <button class="btn btn-secondary" onclick="backToMap()">もどる</button>
+            <button class="btn btn-primary" onclick="startStageBattle()">バトル開始！⚔️</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== バトル画面 ========== -->
+<div id="battleScreen" class="screen">
+    <div class="battle-wrap">
+
+        <div class="battle-top-bar">
+            <button class="btn-exit-battle" onclick="exitBattle()">✕ タイトルへ</button>
+        </div>
+
+        <!-- HP バー -->
+        <div class="battle-hps">
+            <div class="battle-hp-box">
+                <span class="label">🧙 勇者</span>
+                <div class="hp-row">
+                    <div class="hp-track"><div class="hp-fill" id="playerHpFill" style="width:100%"></div></div>
+                    <span id="playerHpText">100/100</span>
+                </div>
+            </div>
+            <div class="battle-hp-box">
+                <span class="label" id="enemyLabel">👾 てき</span>
+                <div class="hp-row">
+                    <div class="hp-track"><div class="hp-fill enemy-fill" id="enemyHpFill" style="width:100%"></div></div>
+                    <span id="enemyHpText"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ステージ名チップ -->
+        <div><span class="stage-chip" id="battleStageChip"></span></div>
+
+        <!-- バトルシーン -->
+        <div class="battle-scene">
+            <div class="dmg-pop" id="dmgPop"></div>
+            <div class="player-dmg-pop" id="playerDmgPop"></div>
+            <div class="enemy-sprite" id="enemySprite">👾</div>
+        </div>
+
+        <div class="q-progress" id="qProgress">1 / 5</div>
+
+        <!-- 新出漢字：パーツ合成 & 導入パネル -->
+        <div class="q-panel" id="introPanel" style="display:none">
+            <div class="synth-stage" id="synthStage">
+                <div class="synth-result" id="synthResult"></div>
+            </div>
+            <div style="text-align:center;margin-bottom:12px">
+                <button class="btn btn-secondary synth-replay-btn" id="synthReplayBtn" onclick="replaySynthesis()" style="display:none">🔁 もう一度見る</button>
+            </div>
+            <div class="kanji-info-card" id="kanjiInfoCard"></div>
+            <div class="write-once-panel">
+                <div class="write-once-kanji" id="writeOnceKanji"></div>
+                <div class="write-once-hint">大きく1回、ていねいに書いてみよう</div>
+                <button class="btn btn-primary" onclick="confirmWritten()">書けた！つぎへ ▶</button>
+            </div>
+        </div>
+
+        <!-- 復習・テスト：問題パネル -->
+        <div class="q-panel" id="quizPanel" style="display:none">
+            <div class="skill-badge" id="skillBadge">📚 熟語クイズ</div>
+            <div class="q-text" id="qText"></div>
+            <div class="choices" id="choices"></div>
+            <div class="feedback" id="feedbackBox" style="display:none"></div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ========== ステージクリア／今日の特訓 結果画面 ========== -->
+<div id="stageClearScreen" class="screen">
+    <div class="clear-wrap">
+        <div class="clear-title" id="clearTitle">⭐ クリア！ ⭐</div>
+        <div id="clearContent"></div>
+        <button class="btn btn-primary" id="clearNextBtn">マップへもどる 🗺️</button>
+    </div>
+</div>
+
+<!-- ========== ゲームオーバー画面 ========== -->
+<div id="gameOverScreen" class="screen">
+    <div class="clear-wrap">
+        <div class="gameover-title">💀 ゲームオーバー</div>
+        <p style="color:#b8b8d1;line-height:2">HPが０になってしまった…<br>もう一度チャレンジしよう！</p>
+        <button class="btn btn-primary" onclick="retryBattle()">⚔️ もう一度</button>
+        <button class="btn btn-secondary" onclick="backToMap()">🗺️ マップへ</button>
+    </div>
+</div>
+
+<!-- ========== まちがいノート画面 ========== -->
+<div id="notebookScreen" class="screen">
+    <div class="panel" style="margin-top:30px">
+        <h2>📕 まちがいノート</h2>
+        <p style="color:#b8b8d1;font-size:0.85rem;margin-bottom:14px">まちがえた漢字はここに集まるよ。1日後→3日後→7日後で正解するとマスターになる。</p>
+        <div class="notebook-list" id="notebookList"></div>
+        <div class="intro-buttons">
+            <button class="btn btn-secondary" onclick="show('titleScreen')">もどる</button>
+            <button class="btn btn-primary" id="notebookReviewBtn" onclick="startNotebookReview()">今すぐ復習する 📕</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 全漢字マスター画面 ========== -->
+<div id="allMasteredScreen" class="screen">
+    <div class="clear-wrap">
+        <div class="complete-title">🏆 全193字マスター！ 🏆</div>
+        <p style="color:#b8b8d1;line-height:2">おめでとう！<br>あなたは真の「部首の勇者」になった！</p>
+        <div class="score-box">
+            <div class="score-row"><span>覚えた漢字</span><span style="color:#2ecc71;font-weight:bold">193 / 193字</span></div>
+            <div class="score-row"><span>連続日数</span><span id="masteredStreak" style="color:#f7d774">0日</span></div>
+        </div>
+        <button class="btn btn-primary" onclick="show('titleScreen')">▶ タイトルへ</button>
+    </div>
+</div>
+
+<script src="data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
