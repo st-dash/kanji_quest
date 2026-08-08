@@ -420,11 +420,12 @@ function makeReviewQuizItem(kanjiId) {
         };
     }
     if (quizType === 'writing') {
+        const blanked = compound.sentence.split(k.kanji).join('＿');
         return {
             type: 'quiz', kanjiId, isReview: true, quizType, inputType: 'writing',
-            question: `つぎの意味を表す漢字を書いてみよう\n「${k.meaning}」`,
+            question: `${blanked}\n（${compound.reading}）\n＿に入る漢字を書いてみよう`,
             answer: k.kanji,
-            explanation: `正解は「${k.kanji}」。音読み: ${k.onyomi.join('、') || 'なし'}／訓読み: ${k.kunyomi.join('、') || 'なし'}`,
+            explanation: `正解は「${k.kanji}」。「${compound.word}（${compound.reading}）」だね。`,
         };
     }
     if (quizType === 'meaning') {
@@ -731,11 +732,12 @@ function makeQuizItem(kanjiId, source) {
         };
     }
     if (quizType === 'writing') {
+        const blanked = compound.sentence.split(k.kanji).join('＿');
         return {
             type: 'quiz', kanjiId, source, quizType, inputType: 'writing',
-            question: `つぎの意味を表す漢字を書いてみよう\n「${k.meaning}」`,
+            question: `${blanked}\n（${compound.reading}）\n＿に入る漢字を書いてみよう`,
             answer: k.kanji,
-            explanation: `正解は「${k.kanji}」。${k.partsStory}`,
+            explanation: `正解は「${k.kanji}」。「${compound.word}（${compound.reading}）」だね。${k.partsStory}`,
         };
     }
     if (quizType === 'meaning') {
