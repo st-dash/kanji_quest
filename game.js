@@ -567,6 +567,8 @@ function renderIntro(item) {
     currentIntroKanjiId = item.kanjiId;
     const k = KANJI_BY_ID[item.kanjiId];
     document.getElementById('writeOnceKanji').textContent = k.kanji;
+    document.getElementById('writeOnceKanjiStep').style.display = 'block';
+    document.getElementById('writeOnceCompoundStep').style.display = 'none';
     const card = document.getElementById('kanjiInfoCard');
     card.classList.remove('show');
     card.innerHTML = '';
@@ -650,7 +652,16 @@ function showKanjiInfoCard(k, cardId) {
     requestAnimationFrame(() => card.classList.add('show'));
 }
 
-function confirmWritten() { advanceQueue(); }
+function confirmWrittenKanji() {
+    const k = KANJI_BY_ID[currentIntroKanjiId];
+    const compound = k.compounds[0];
+    document.getElementById('writeOnceCompound').textContent = compound.word;
+    document.getElementById('writeOnceCompoundReading').textContent = `（${compound.reading}）`;
+    document.getElementById('writeOnceKanjiStep').style.display = 'none';
+    document.getElementById('writeOnceCompoundStep').style.display = 'block';
+}
+
+function confirmWrittenCompound() { advanceQueue(); }
 
 // ===== クイズ生成 =====
 function makeQuizItem(kanjiId, source) {

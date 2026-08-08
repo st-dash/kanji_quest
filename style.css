@@ -473,6 +473,8 @@ body {
 /* ===== 一回書くステップ ===== */
 .write-once-panel { text-align: center; padding: 12px 0 4px; }
 .write-once-kanji { font-size: 5.5rem; color: rgba(255,255,255,0.14); font-weight: 900; user-select: none; line-height: 1; }
+.write-once-compound { font-size: 3.1rem; color: rgba(255,255,255,0.14); font-weight: 900; user-select: none; line-height: 1.3; letter-spacing: 0.05em; }
+.write-once-compound-reading { color: #a8d8ea; font-size: 0.85rem; margin-top: 2px; }
 .write-once-hint { color: #b8b8d1; font-size: 0.85rem; margin: 8px 0 16px; }
 
 /* ===== まちがいノート ===== */

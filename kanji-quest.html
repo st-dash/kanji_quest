@@ -171,10 +171,16 @@
                 <button class="btn btn-secondary synth-replay-btn" id="synthReplayBtn" onclick="replaySynthesis()" style="display:none">🔁 もう一度見る</button>
             </div>
             <div class="kanji-info-card" id="kanjiInfoCard"></div>
-            <div class="write-once-panel">
+            <div class="write-once-panel" id="writeOnceKanjiStep">
                 <div class="write-once-kanji" id="writeOnceKanji"></div>
                 <div class="write-once-hint">大きく1回、ていねいに書いてみよう</div>
-                <button class="btn btn-primary" onclick="confirmWritten()">書けた！つぎへ ▶</button>
+                <button class="btn btn-primary" onclick="confirmWrittenKanji()">書けた！つぎへ ▶</button>
+            </div>
+            <div class="write-once-panel" id="writeOnceCompoundStep" style="display:none">
+                <div class="write-once-compound" id="writeOnceCompound"></div>
+                <div class="write-once-compound-reading" id="writeOnceCompoundReading"></div>
+                <div class="write-once-hint">熟語も1回、ていねいに書いてみよう</div>
+                <button class="btn btn-primary" onclick="confirmWrittenCompound()">書けた！つぎへ ▶</button>
             </div>
         </div>
 
