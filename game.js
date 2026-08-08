@@ -207,35 +207,93 @@ function startDailyBattle() {
     beginBattle();
 }
 
+// 新出漢字は「書く」をまとめてから、そのクイズをまちがいノート復習と混ぜて
+// まとめて出題する（想起までの間隔をあけるほど記憶定着が良くなる lag effect ＋
+// 異なる漢字を交互に出す interleaving を狙った構成）。
 function buildTodayQueue() {
     const dueIds = getDueReviewIds(DAILY_MAX);
     const reviewItems = dueIds.map(id => makeQuizItem(id, 'review'));
 
     const targetTotal = Math.min(DAILY_MAX, Math.max(DAILY_MIN, reviewItems.length));
     const newNeeded = Math.max(0, targetTotal - reviewItems.length);
-    const newIds = pickNextNewKanji(newNeeded);
-    const newItems = [];
-    newIds.forEach(id => {
-        newItems.push(makeIntroItem(id));
-        newItems.push(makeQuizItem(id, 'new'));
-    });
+    let newIds = pickNextNewKanji(newNeeded);
 
-    if (reviewItems.length === 0 && newItems.length === 0) {
+    if (reviewItems.length === 0 && newIds.length === 0) {
         if (progress.masteredIds.length === 0) {
-            pickNextNewKanji(DAILY_MIN).forEach(id => {
-                newItems.push(makeIntroItem(id));
-                newItems.push(makeQuizItem(id, 'new'));
-            });
+            newIds = pickNextNewKanji(DAILY_MIN);
         } else {
             return shuffle(progress.masteredIds).slice(0, DAILY_MIN).map(id => makeQuizItem(id, 'reinforce'));
         }
     }
-    return reviewItems.concat(newItems);
+
+    const introItems = newIds.map(id => makeIntroItem(id));
+    const newQuizItems = newIds.flatMap(id => makeNewKanjiQuizItems(id));
+    const quizBlock = shuffleSeparatingSameKanji(reviewItems.concat(newQuizItems));
+
+    return introItems.concat(quizBlock);
 }
 
 function pickNextNewKanji(n) {
     if (n <= 0) return [];
     return KANJI_LIST.filter(k => !progress.learnedIds.includes(k.id)).slice(0, n).map(k => k.id);
+}
+
+// 新出漢字は読み方・穴うめ・意味の3問すべてを出題する（字↔読みを双方向で
+// 想起させることで結びつきを強く定着させるため）。2つの熟語を使い分けて
+// 語彙のカバー範囲も広げる。
+function makeNewKanjiQuizItems(kanjiId) {
+    const k = KANJI_BY_ID[kanjiId];
+    const readingCompound = k.compounds[0];
+    const fillCompound = k.compounds[1] || k.compounds[0];
+
+    const readingItem = {
+        type: 'quiz', kanjiId, source: 'new', quizType: 'reading', inputType: 'text',
+        question: `「${readingCompound.word}」の読み方は？（ひらがなで入力）`,
+        answer: readingCompound.reading,
+        explanation: `「${readingCompound.word}」は「${readingCompound.reading}」と読む。${readingCompound.sentence}`,
+    };
+
+    const fillDistractors = pickConfusableChars(k, 3);
+    const blanked = fillCompound.sentence.split(k.kanji).join('＿');
+    const fillItem = {
+        type: 'quiz', kanjiId, source: 'new', quizType: 'fillBlank',
+        question: `${blanked}\n＿に入る漢字は？`,
+        choices: shuffle([k.kanji, ...fillDistractors]), answer: k.kanji,
+        explanation: `正解は「${k.kanji}」。「${fillCompound.word}（${fillCompound.reading}）」だね。`,
+    };
+
+    const meaningDistractors = pickConfusableChars(k, 3);
+    const meaningItem = {
+        type: 'quiz', kanjiId, source: 'new', quizType: 'meaning',
+        question: `つぎの意味を表す漢字は？\n「${k.meaning}」`,
+        choices: shuffle([k.kanji, ...meaningDistractors]), answer: k.kanji,
+        explanation: `正解は「${k.kanji}」。${k.partsStory}`,
+    };
+
+    return [readingItem, fillItem, meaningItem];
+}
+
+// 通常のshuffleに加えて、同じ漢字の複数問が隣り合わないよう調整する。
+// 直後に来ると想起の間隔効果が薄れてしまうため。数パス回して、1回のスワップで
+// 別の隣接違反を生まないような交換相手を探す。
+function shuffleSeparatingSameKanji(items) {
+    const arr = shuffle(items);
+    for (let pass = 0; pass < 3; pass++) {
+        let changed = false;
+        for (let i = 1; i < arr.length; i++) {
+            if (arr[i].kanjiId !== arr[i - 1].kanjiId) continue;
+            const swapIdx = arr.findIndex((item, j) =>
+                j !== i && item.kanjiId !== arr[i - 1].kanjiId &&
+                (j === 0 || arr[j - 1].kanjiId !== arr[i].kanjiId) &&
+                (j === arr.length - 1 || arr[j + 1].kanjiId !== arr[i].kanjiId));
+            if (swapIdx !== -1) {
+                [arr[i], arr[swapIdx]] = [arr[swapIdx], arr[i]];
+                changed = true;
+            }
+        }
+        if (!changed) break;
+    }
+    return arr;
 }
 
 // ===== まちがいノート =====
