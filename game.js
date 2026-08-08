@@ -349,18 +349,24 @@ function buildGradeReviewQueue(grade) {
 
 function makeReviewQuizItem(kanjiId) {
     const k = REVIEW_KANJI_BY_ID[kanjiId];
-    const types = ['reading', 'meaning', 'fillBlank'];
+    const types = ['reading', 'meaning', 'fillBlank', 'writing'];
     const quizType = types[Math.floor(Math.random() * types.length)];
     const compound = k.compounds[Math.floor(Math.random() * k.compounds.length)];
 
     if (quizType === 'reading') {
-        const distractors = pickReviewDistractorReadings(compound.reading, 3);
-        const choices = shuffle([compound.reading, ...distractors]);
         return {
-            type: 'quiz', kanjiId, isReview: true, quizType,
-            question: `「${compound.word}」の読み方は？`,
-            choices, answer: compound.reading,
+            type: 'quiz', kanjiId, isReview: true, quizType, inputType: 'text',
+            question: `「${compound.word}」の読み方は？（ひらがなで入力）`,
+            answer: compound.reading,
             explanation: `「${compound.word}」は「${compound.reading}」と読む。${compound.sentence}`,
+        };
+    }
+    if (quizType === 'writing') {
+        return {
+            type: 'quiz', kanjiId, isReview: true, quizType, inputType: 'writing',
+            question: `つぎの意味を表す漢字を書いてみよう\n「${k.meaning}」`,
+            answer: k.kanji,
+            explanation: `正解は「${k.kanji}」。音読み: ${k.onyomi.join('、') || 'なし'}／訓読み: ${k.kunyomi.join('、') || 'なし'}`,
         };
     }
     if (quizType === 'meaning') {
@@ -387,19 +393,6 @@ function makeReviewQuizItem(kanjiId) {
 function pickReviewConfusableChars(k, n) {
     const pool = REVIEW_KANJI_LIST.map(x => x.id).filter(id => id !== k.id);
     return shuffle(pool).slice(0, n).map(id => REVIEW_KANJI_BY_ID[id].kanji);
-}
-
-function pickReviewDistractorReadings(correctReading, n) {
-    const pool = [];
-    REVIEW_KANJI_LIST.forEach(k => k.compounds.forEach(c => { if (c.reading !== correctReading) pool.push(c.reading); }));
-    const used = new Set([correctReading]);
-    const result = [];
-    while (result.length < n && pool.length) {
-        const idx = Math.floor(Math.random() * pool.length);
-        const r = pool.splice(idx, 1)[0];
-        if (!used.has(r)) { used.add(r); result.push(r); }
-    }
-    return result;
 }
 
 // ===== 漢字ずかん（いつでも振り返り） =====
@@ -667,17 +660,24 @@ function confirmWrittenCompound() { advanceQueue(); }
 function makeQuizItem(kanjiId, source) {
     const k = KANJI_BY_ID[kanjiId];
     const types = ['reading', 'meaning', 'fillBlank'];
+    if (progress.learnedIds.includes(kanjiId)) types.push('writing');
     const quizType = types[Math.floor(Math.random() * types.length)];
     const compound = k.compounds[Math.floor(Math.random() * k.compounds.length)];
 
     if (quizType === 'reading') {
-        const distractors = pickDistractorReadings(compound.reading, 3);
-        const choices = shuffle([compound.reading, ...distractors]);
         return {
-            type: 'quiz', kanjiId, source, quizType,
-            question: `「${compound.word}」の読み方は？`,
-            choices, answer: compound.reading,
+            type: 'quiz', kanjiId, source, quizType, inputType: 'text',
+            question: `「${compound.word}」の読み方は？（ひらがなで入力）`,
+            answer: compound.reading,
             explanation: `「${compound.word}」は「${compound.reading}」と読む。${compound.sentence}`,
+        };
+    }
+    if (quizType === 'writing') {
+        return {
+            type: 'quiz', kanjiId, source, quizType, inputType: 'writing',
+            question: `つぎの意味を表す漢字を書いてみよう\n「${k.meaning}」`,
+            answer: k.kanji,
+            explanation: `正解は「${k.kanji}」。${k.partsStory}`,
         };
     }
     if (quizType === 'meaning') {
@@ -711,38 +711,59 @@ function pickConfusableChars(k, n) {
     return shuffle(ids).slice(0, n).map(id => KANJI_BY_ID[id].kanji);
 }
 
-function pickDistractorReadings(correctReading, n) {
-    const pool = [];
-    KANJI_LIST.forEach(k => k.compounds.forEach(c => { if (c.reading !== correctReading) pool.push(c.reading); }));
-    const used = new Set([correctReading]);
-    const result = [];
-    while (result.length < n && pool.length) {
-        const idx = Math.floor(Math.random() * pool.length);
-        const r = pool.splice(idx, 1)[0];
-        if (!used.has(r)) { used.add(r); result.push(r); }
-    }
-    return result;
-}
-
 function quizTypeLabel(t) {
     if (t === 'reading') return '📖 読み方クイズ';
     if (t === 'meaning') return '💡 意味クイズ';
+    if (t === 'writing') return '✍️ 書き取りクイズ';
     return '📝 穴うめクイズ';
 }
 
 function renderQuiz(item) {
     document.getElementById('skillBadge').textContent = quizTypeLabel(item.quizType);
     document.getElementById('qText').innerText = item.question;
-    const choicesEl = document.getElementById('choices');
-    choicesEl.innerHTML = '';
-    item.choices.forEach(text => {
-        const btn = document.createElement('button');
-        btn.className = 'choice-btn';
-        btn.textContent = text;
-        btn.addEventListener('click', () => onQuizAnswer(item, text));
-        choicesEl.appendChild(btn);
-    });
     document.getElementById('feedbackBox').style.display = 'none';
+
+    const choicesEl = document.getElementById('choices');
+    const textAreaEl = document.getElementById('textAnswerArea');
+    const writingAreaEl = document.getElementById('writingAnswerArea');
+    choicesEl.style.display = 'none';
+    textAreaEl.style.display = 'none';
+    writingAreaEl.style.display = 'none';
+    choicesEl.innerHTML = '';
+
+    if (item.inputType === 'text') {
+        textAreaEl.style.display = 'flex';
+        const input = document.getElementById('textAnswerInput');
+        input.value = '';
+        input.disabled = false;
+        input.className = 'text-answer-input';
+        document.getElementById('textAnswerSubmitBtn').disabled = false;
+        setTimeout(() => input.focus(), 50);
+    } else if (item.inputType === 'writing') {
+        writingAreaEl.style.display = 'block';
+        document.getElementById('writingReveal').style.display = 'none';
+        document.getElementById('writingRevealBtn').style.display = 'inline-block';
+        document.querySelectorAll('.writing-self-grade button').forEach(b => b.disabled = false);
+        initWritingCanvas();
+    } else {
+        choicesEl.style.display = 'flex';
+        item.choices.forEach(text => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = text;
+            btn.addEventListener('click', () => onQuizAnswer(item, text));
+            choicesEl.appendChild(btn);
+        });
+    }
+}
+
+function submitTextAnswer() {
+    const item = gs.queue[gs.qIdx];
+    if (!item || item.inputType !== 'text') return;
+    const input = document.getElementById('textAnswerInput');
+    const value = input.value.trim();
+    if (!value) { input.focus(); return; }
+    onQuizAnswer(item, value);
 }
 
 // ===== 回答処理 =====
@@ -754,6 +775,17 @@ function onQuizAnswer(item, chosen) {
         if (btn.textContent === item.answer) btn.classList.add('correct');
         else if (btn.textContent === chosen && !correct) btn.classList.add('wrong');
     });
+
+    if (item.inputType === 'text') {
+        const input = document.getElementById('textAnswerInput');
+        input.disabled = true;
+        input.classList.add(correct ? 'correct' : 'wrong');
+        document.getElementById('textAnswerSubmitBtn').disabled = true;
+    }
+    if (item.inputType === 'writing') {
+        document.getElementById('writingRevealBtn').style.display = 'none';
+        document.querySelectorAll('.writing-self-grade button').forEach(b => b.disabled = true);
+    }
 
     if (item.isReview) {
         if (correct && !reviewProgress.masteredIds.includes(item.kanjiId)) {
@@ -798,6 +830,71 @@ function showFeedback(ok, explanation) {
         <div class="expl">${explanation}</div>
         <button class="btn btn-primary" onclick="advanceQueue()">つぎへ ▶</button>`;
     fb.style.display = 'block';
+}
+
+// ===== 書き取りクイズ：手書きキャンバス =====
+let writingCtx = null;
+let writingDrawing = false;
+
+function initWritingCanvas() {
+    const canvas = document.getElementById('writingCanvas');
+    writingCtx = canvas.getContext('2d');
+    writingCtx.clearRect(0, 0, canvas.width, canvas.height);
+    writingCtx.strokeStyle = '#fffffe';
+    writingCtx.lineWidth = 10;
+    writingCtx.lineCap = 'round';
+    writingCtx.lineJoin = 'round';
+    document.getElementById('writingRevealBtn').disabled = true;
+
+    if (!canvas.dataset.bound) {
+        canvas.addEventListener('pointerdown', writingPointerDown);
+        canvas.addEventListener('pointermove', writingPointerMove);
+        window.addEventListener('pointerup', () => { writingDrawing = false; });
+        canvas.dataset.bound = '1';
+    }
+}
+
+function writingCanvasPos(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+}
+
+function writingPointerDown(e) {
+    e.preventDefault();
+    writingDrawing = true;
+    const pos = writingCanvasPos(e, e.target);
+    writingCtx.beginPath();
+    writingCtx.moveTo(pos.x, pos.y);
+    document.getElementById('writingRevealBtn').disabled = false;
+}
+
+function writingPointerMove(e) {
+    if (!writingDrawing) return;
+    e.preventDefault();
+    const pos = writingCanvasPos(e, e.target);
+    writingCtx.lineTo(pos.x, pos.y);
+    writingCtx.stroke();
+}
+
+function clearWritingCanvas() {
+    const canvas = document.getElementById('writingCanvas');
+    writingCtx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('writingRevealBtn').disabled = true;
+}
+
+function revealWritingAnswer() {
+    const item = gs.queue[gs.qIdx];
+    document.getElementById('writingAnswerKanji').textContent = item.answer;
+    document.getElementById('writingReveal').style.display = 'block';
+    document.getElementById('writingRevealBtn').style.display = 'none';
+}
+
+function submitWritingSelfGrade(isCorrect) {
+    const item = gs.queue[gs.qIdx];
+    onQuizAnswer(item, isCorrect ? item.answer : null);
 }
 
 function advanceQueue() {

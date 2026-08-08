@@ -188,7 +188,30 @@
         <div class="q-panel" id="quizPanel" style="display:none">
             <div class="skill-badge" id="skillBadge">📚 熟語クイズ</div>
             <div class="q-text" id="qText"></div>
+
             <div class="choices" id="choices"></div>
+
+            <div class="text-answer" id="textAnswerArea" style="display:none">
+                <input type="text" id="textAnswerInput" class="text-answer-input" placeholder="ひらがなで入力" autocomplete="off" onkeydown="if(event.key==='Enter') submitTextAnswer()">
+                <button class="btn btn-primary" id="textAnswerSubmitBtn" onclick="submitTextAnswer()">こたえる ▶</button>
+            </div>
+
+            <div class="writing-answer" id="writingAnswerArea" style="display:none">
+                <canvas id="writingCanvas" width="280" height="280" class="writing-canvas"></canvas>
+                <div class="writing-actions">
+                    <button class="btn btn-secondary" onclick="clearWritingCanvas()">🧹 消す</button>
+                    <button class="btn btn-primary" id="writingRevealBtn" onclick="revealWritingAnswer()" disabled>書けた！答えを見る</button>
+                </div>
+                <div class="writing-reveal" id="writingReveal" style="display:none">
+                    <div class="writing-answer-kanji" id="writingAnswerKanji"></div>
+                    <div class="writing-hint">くらべてみよう。あっていたかな？</div>
+                    <div class="writing-self-grade">
+                        <button class="btn btn-primary" onclick="submitWritingSelfGrade(true)">⭕ できた</button>
+                        <button class="btn btn-secondary" onclick="submitWritingSelfGrade(false)">❌ まちがえた</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="feedback" id="feedbackBox" style="display:none"></div>
         </div>
 
