@@ -23,7 +23,8 @@
         <button class="btn btn-primary" onclick="startDailyBattle()">🔥 今日の特訓へ</button>
         <button class="btn btn-secondary" onclick="openMap()">🗺️ ステージマップ</button>
         <button class="btn btn-secondary" onclick="openNotebook()">📕 まちがいノート</button>
-        <button class="btn btn-secondary" onclick="openKanjiDex()">📖 漢字ずかん（5年生193字）</button>
+        <button class="btn btn-secondary" onclick="openKanjiDex('main')">📖 漢字ずかん（5年生193字）</button>
+        <button class="btn btn-secondary" onclick="openKanjiDex('grade4')">📖 漢字ずかん（4年生202字）</button>
         <button class="btn btn-secondary" onclick="openReviewMap()">📘 1〜4年生の漢字おさらい</button>
         <button class="btn btn-secondary" onclick="showHowToPlay()">あそびかた ？</button>
         <button class="btn-reset" onclick="resetAllProgress()">🗑️ 学習データをリセット</button>
@@ -223,8 +224,8 @@
 <!-- ========== 漢字ずかん 一覧画面 ========== -->
 <div id="kanjiDexScreen" class="screen">
     <div class="panel" style="margin-top:30px">
-        <h2 class="map-title" style="margin-bottom:4px">📖 漢字ずかん</h2>
-        <p style="color:#b8b8d1;font-size:0.85rem;text-align:center;margin-bottom:16px">5年生193字、いつでも見返せるよ。⭐は覚えた漢字。</p>
+        <h2 class="map-title" style="margin-bottom:4px" id="dexTitle">📖 漢字ずかん</h2>
+        <p style="color:#b8b8d1;font-size:0.85rem;text-align:center;margin-bottom:16px" id="dexSubtitle">5年生193字、いつでも見返せるよ。⭐は覚えた漢字。</p>
         <div class="dex-grid" id="dexGrid"></div>
         <div style="text-align:center;margin-top:16px">
             <button class="btn btn-secondary" onclick="show('titleScreen')">タイトルへ</button>

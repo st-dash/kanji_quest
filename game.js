@@ -404,18 +404,46 @@ function pickReviewDistractorReadings(correctReading, n) {
 
 // ===== 漢字ずかん（いつでも振り返り） =====
 const DEX_SYNTH_IDS = { stage: 'dexSynthStage', result: 'dexSynthResult', card: 'dexKanjiInfoCard', replayBtn: 'dexReplayBtn' };
+
+const DEX_SOURCES = {
+    main: {
+        title: '📖 漢字ずかん',
+        subtitle: '5年生193字、いつでも見返せるよ。⭐は覚えた漢字。',
+        getList: () => KANJI_LIST,
+        getById: () => KANJI_BY_ID,
+        isLearned: (id) => progress.learnedIds.includes(id),
+    },
+    grade4: {
+        title: '📖 漢字ずかん（4年生）',
+        subtitle: '4年生202字、いつでも見返せるよ。⭐はおさらいでマスターした漢字。',
+        getList: () => REVIEW_KANJI_LIST.filter(k => k.grade === 4),
+        getById: () => REVIEW_KANJI_BY_ID,
+        isLearned: (id) => reviewProgress.masteredIds.includes(id),
+    },
+};
+
+let dexSource = 'main';
+let currentDexList = [];
+let currentDexById = {};
 let currentDexKanjiId = null;
 
-function openKanjiDex() {
+function openKanjiDex(source) {
+    dexSource = source;
+    const cfg = DEX_SOURCES[source];
+    currentDexList = cfg.getList();
+    currentDexById = cfg.getById();
+    document.getElementById('dexTitle').textContent = cfg.title;
+    document.getElementById('dexSubtitle').textContent = cfg.subtitle;
     renderDexGrid();
     show('kanjiDexScreen');
 }
 
 function renderDexGrid() {
+    const cfg = DEX_SOURCES[dexSource];
     const grid = document.getElementById('dexGrid');
     grid.innerHTML = '';
-    KANJI_LIST.forEach(k => {
-        const learned = progress.learnedIds.includes(k.id);
+    currentDexList.forEach(k => {
+        const learned = cfg.isLearned(k.id);
         const item = document.createElement('div');
         item.className = 'dex-item' + (learned ? ' learned' : '');
         item.innerHTML = `${k.kanji}${learned ? '<span class="dex-star">⭐</span>' : ''}`;
@@ -431,30 +459,30 @@ function openDexDetail(kanjiId) {
 }
 
 function renderDexDetail() {
-    const k = KANJI_BY_ID[currentDexKanjiId];
+    const k = currentDexById[currentDexKanjiId];
     document.getElementById('dexKanjiInfoCard').classList.remove('show');
     document.getElementById('dexKanjiInfoCard').innerHTML = '';
     document.getElementById('dexReplayBtn').style.display = 'none';
-    const idx = KANJI_LIST.findIndex(x => x.id === currentDexKanjiId);
-    document.getElementById('dexKanjiCounter').textContent = `${idx + 1} / ${KANJI_LIST.length}`;
+    const idx = currentDexList.findIndex(x => x.id === currentDexKanjiId);
+    document.getElementById('dexKanjiCounter').textContent = `${idx + 1} / ${currentDexList.length}`;
     runSynthesisAnimation(k, DEX_SYNTH_IDS);
 }
 
 function replayDexSynthesis() {
     if (currentDexKanjiId == null) return;
-    const k = KANJI_BY_ID[currentDexKanjiId];
+    const k = currentDexById[currentDexKanjiId];
     document.getElementById('dexKanjiInfoCard').classList.remove('show');
     document.getElementById('dexReplayBtn').style.display = 'none';
     runSynthesisAnimation(k, DEX_SYNTH_IDS);
 }
 
 function prevDexKanji() {
-    const idx = KANJI_LIST.findIndex(k => k.id === currentDexKanjiId);
-    openDexDetail(KANJI_LIST[(idx - 1 + KANJI_LIST.length) % KANJI_LIST.length].id);
+    const idx = currentDexList.findIndex(k => k.id === currentDexKanjiId);
+    openDexDetail(currentDexList[(idx - 1 + currentDexList.length) % currentDexList.length].id);
 }
 function nextDexKanji() {
-    const idx = KANJI_LIST.findIndex(k => k.id === currentDexKanjiId);
-    openDexDetail(KANJI_LIST[(idx + 1) % KANJI_LIST.length].id);
+    const idx = currentDexList.findIndex(k => k.id === currentDexKanjiId);
+    openDexDetail(currentDexList[(idx + 1) % currentDexList.length].id);
 }
 
 // ===== 学習データのリセット =====
@@ -564,7 +592,9 @@ function runSynthesisAnimation(k, ids) {
     resultEl.textContent = '';
     resultEl.classList.remove('show');
 
-    const positions = [{ x: -70, y: -10 }, { x: 70, y: -10 }, { x: 0, y: 55 }];
+    const positions = k.parts.length >= 4
+        ? [{ x: -70, y: -25 }, { x: 70, y: -25 }, { x: -70, y: 60 }, { x: 70, y: 60 }]
+        : [{ x: -70, y: -10 }, { x: 70, y: -10 }, { x: 0, y: 55 }];
     const partEls = k.parts.map((p, i) => {
         const el = document.createElement('div');
         el.className = 'synth-part';
