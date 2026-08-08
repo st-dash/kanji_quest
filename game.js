@@ -1039,7 +1039,7 @@ function showClear() {
         nextBtn.textContent = 'マップへもどる 🗺️';
         nextBtn.onclick = backToMap;
     } else if (gs.mode === 'reviewGrade') {
-        nextBtn.textContent = 'おさらいマップへ 📘';
+        nextBtn.textContent = '成長の街道へ 🌱';
         nextBtn.onclick = openReviewMap;
     } else {
         nextBtn.textContent = 'タイトルへもどる 🏠';
