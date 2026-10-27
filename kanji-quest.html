@@ -14,20 +14,16 @@
         <div class="title-deco">⚔️ 🈴 ⚔️</div>
         <h1 class="game-title">漢字<br>クエスト</h1>
         <p class="game-subtitle">〜 部首の勇者 〜</p>
-        <div class="title-story">
-            小学5年生の193字が眠る<br>
-            王国に、「丸暗記の霧」が<br>
-            立ちこめている。<br>
-            漢字をパーツに分解し、<br>
-            熟語で使いこなす力で<br>
-            霧を晴らす勇者になろう！
+        <div class="grade-select-wrap">
+            <div class="grade-select-label">学年をえらぶ</div>
+            <div class="grade-select" id="gradeSelect"></div>
         </div>
+        <div class="title-story" id="titleStory"></div>
         <button class="btn btn-primary" onclick="startDailyBattle()">🔥 今日の特訓へ</button>
-        <button class="btn btn-secondary" onclick="openMap()">🗺️ ステージマップ</button>
-        <button class="btn btn-secondary" onclick="openReviewMap()">🌱 成長の街道</button>
+        <button class="btn btn-secondary" id="titleMapBtn" onclick="openMap()">🗺️ ステージマップ</button>
+        <button class="btn btn-secondary" id="titleReviewBtn" onclick="openReviewMap()">🌱 成長の街道</button>
         <button class="btn btn-secondary" onclick="openNotebook()">📕 まちがいノート</button>
-        <button class="btn btn-secondary" onclick="openKanjiDex('main')">📖 漢字ずかん（5年生193字）</button>
-        <button class="btn btn-secondary" onclick="openKanjiDex('grade4')">📖 漢字ずかん（4年生202字）</button>
+        <button class="btn btn-secondary" id="titleDexBtn" onclick="openKanjiDex()">📖 漢字ずかん</button>
         <button class="btn btn-secondary" onclick="showHowToPlay()">あそびかた ？</button>
         <button class="btn-reset" onclick="resetAllProgress()">🗑️ 学習データをリセット</button>
     </div>
@@ -53,10 +49,17 @@
                 </div>
             </div>
             <div class="howto-item">
+                <span class="howto-icon">🎒</span>
+                <div>
+                    <strong>学年をえらぼう</strong>
+                    <p>タイトル画面で1〜5年生をえらべるよ。覚えた漢字やまちがいノートは学年ごとに記録されるよ。</p>
+                </div>
+            </div>
+            <div class="howto-item">
                 <span class="howto-icon">✍️</span>
                 <div>
-                    <strong>1回だけ書いて、テストする</strong>
-                    <p>10回書くより、1回ていねいに書いて思い出すテストの方が身につくよ。</p>
+                    <strong>書き順を見て、1回だけ書く</strong>
+                    <p>お手本のアニメで書き順を見たら、1画ずつ指で書いてみよう。順番や向きがちがうと教えてくれるよ。10回書くより、1回ていねいに書いて思い出すテストの方が身につくよ。</p>
                 </div>
             </div>
             <div class="howto-item">
@@ -75,6 +78,7 @@
             </div>
         </div>
         <button class="btn btn-primary" onclick="show('titleScreen')">もどる</button>
+        <p class="credit">書き順データ: <a href="https://kanjivg.tagaini.net" target="_blank" rel="noopener">KanjiVG</a> © Ulrich Apel（CC BY-SA 3.0）</p>
     </div>
 </div>
 
@@ -166,17 +170,25 @@
 
         <!-- 新出漢字：パーツ合成 & 導入パネル -->
         <div class="q-panel" id="introPanel" style="display:none">
-            <div class="synth-stage" id="synthStage">
-                <div class="synth-result" id="synthResult"></div>
+            <div id="introLearnStep">
+                <div class="synth-stage" id="synthStage">
+                    <div class="synth-result" id="synthResult"></div>
+                </div>
+                <div style="text-align:center;margin-bottom:12px">
+                    <button class="btn btn-secondary synth-replay-btn" id="synthReplayBtn" onclick="replaySynthesis()" style="display:none">🔁 もう一度見る</button>
+                </div>
+                <div class="kanji-info-card" id="kanjiInfoCard"></div>
+                <div class="write-once-panel">
+                    <button class="btn btn-primary" id="toStrokeStepBtn" onclick="openIntroStrokeStep()" style="display:none">✍️ 書き順を練習 ▶</button>
+                </div>
             </div>
-            <div style="text-align:center;margin-bottom:12px">
-                <button class="btn btn-secondary synth-replay-btn" id="synthReplayBtn" onclick="replaySynthesis()" style="display:none">🔁 もう一度見る</button>
-            </div>
-            <div class="kanji-info-card" id="kanjiInfoCard"></div>
-            <div class="write-once-panel" id="writeOnceKanjiStep">
-                <div class="write-once-kanji" id="writeOnceKanji"></div>
-                <div class="write-once-hint">大きく1回、ていねいに書いてみよう</div>
-                <button class="btn btn-primary" onclick="confirmWrittenKanji()">書けた！つぎへ ▶</button>
+            <div class="write-once-panel" id="strokeStep" style="display:none">
+                <div class="stroke-step-title" id="strokeStepTitle"></div>
+                <div class="stroke-area" id="introStrokeArea"></div>
+                <div class="writing-actions">
+                    <button class="btn btn-secondary" onclick="replayIntroStrokeDemo()">🔁 お手本を見る</button>
+                    <button class="btn btn-primary" id="strokeNextBtn" onclick="confirmWrittenKanji()" style="display:none">書けた！つぎへ ▶</button>
+                </div>
             </div>
             <div class="write-once-panel" id="writeOnceCompoundStep" style="display:none">
                 <div class="write-once-compound" id="writeOnceCompound"></div>
@@ -205,8 +217,8 @@
                     <button class="btn btn-primary" id="writingRevealBtn" onclick="revealWritingAnswer()" disabled>書けた！答えを見る</button>
                 </div>
                 <div class="writing-reveal" id="writingReveal" style="display:none">
-                    <div class="writing-answer-kanji" id="writingAnswerKanji"></div>
-                    <div class="writing-hint">くらべてみよう。あっていたかな？</div>
+                    <div class="stroke-area stroke-area-sm" id="writingAnswerStrokeArea"></div>
+                    <div class="writing-hint">くらべてみよう。書き順もあっていたかな？</div>
                     <div class="writing-self-grade">
                         <button class="btn btn-primary" onclick="submitWritingSelfGrade(true)">⭕ できた</button>
                         <button class="btn btn-secondary" onclick="submitWritingSelfGrade(false)">❌ まちがえた</button>
@@ -235,7 +247,7 @@
         <div class="gameover-title">💀 ゲームオーバー</div>
         <p style="color:#b8b8d1;line-height:2">HPが０になってしまった…<br>もう一度チャレンジしよう！</p>
         <button class="btn btn-primary" onclick="retryBattle()">⚔️ もう一度</button>
-        <button class="btn btn-secondary" onclick="backToMap()">🗺️ マップへ</button>
+        <button class="btn btn-secondary" onclick="leaveGameOver()">もどる</button>
     </div>
 </div>
 
@@ -275,6 +287,11 @@
             <button class="btn btn-secondary synth-replay-btn" id="dexReplayBtn" onclick="replayDexSynthesis()" style="display:none">🔁 もう一度見る</button>
         </div>
         <div class="kanji-info-card" id="dexKanjiInfoCard"></div>
+        <div class="stroke-area" id="dexStrokeArea"></div>
+        <div class="writing-actions">
+            <button class="btn btn-secondary synth-replay-btn" onclick="playDexStrokeDemo()">▶ 書き順を見る</button>
+            <button class="btn btn-secondary synth-replay-btn" onclick="startDexStrokePractice()">✍️ 書いてみる</button>
+        </div>
         <div class="intro-buttons">
             <button class="btn btn-secondary" onclick="prevDexKanji()">◀ 前の漢字</button>
             <button class="btn btn-secondary" onclick="nextDexKanji()">次の漢字 ▶</button>
@@ -288,10 +305,10 @@
 <!-- ========== 全漢字マスター画面 ========== -->
 <div id="allMasteredScreen" class="screen">
     <div class="clear-wrap">
-        <div class="complete-title">🏆 全193字マスター！ 🏆</div>
+        <div class="complete-title" id="masteredTitle">🏆 全193字マスター！ 🏆</div>
         <p style="color:#b8b8d1;line-height:2">おめでとう！<br>あなたは真の「部首の勇者」になった！</p>
         <div class="score-box">
-            <div class="score-row"><span>覚えた漢字</span><span style="color:#2ecc71;font-weight:bold">193 / 193字</span></div>
+            <div class="score-row"><span>覚えた漢字</span><span id="masteredCount" style="color:#2ecc71;font-weight:bold">193 / 193字</span></div>
             <div class="score-row"><span>連続日数</span><span id="masteredStreak" style="color:#f7d774">0日</span></div>
         </div>
         <button class="btn btn-primary" onclick="show('titleScreen')">▶ タイトルへ</button>
@@ -300,6 +317,8 @@
 
 <script src="data.js"></script>
 <script src="review-data.js"></script>
+<script src="stroke-data.js"></script>
+<script src="stroke.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

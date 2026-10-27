@@ -1,7 +1,33 @@
 // game.js - 漢字クエスト ゲームエンジン
 
-// ===== 永続化（学習記録） =====
-const STORAGE_KEY = 'kanji-quest-progress-v1';
+// ===== 学年えらび =====
+const GRADES = [1, 2, 3, 4, 5];
+const GRADE_STORAGE_KEY = 'kanji-quest-selected-grade';
+
+// 1〜4年生は画数の少ない字から順に学ぶ（書き順の練習がやさしい字から始まるように）
+function gradeKanjiList(grade) {
+    if (grade === 5) return KANJI_LIST;
+    return REVIEW_KANJI_LIST.filter(k => k.grade === grade)
+        .sort((a, b) => strokeCount(a.kanji) - strokeCount(b.kanji));
+}
+function gradeKanjiById(grade) { return grade === 5 ? KANJI_BY_ID : REVIEW_KANJI_BY_ID; }
+
+function loadSelectedGrade() {
+    try {
+        const saved = Number(localStorage.getItem(GRADE_STORAGE_KEY));
+        if (GRADES.includes(saved)) return saved;
+        // 学年えらび導入前に5年生で遊んでいた場合は、その続きから始める
+        return localStorage.getItem(progressStorageKey(5)) ? 5 : 1;
+    } catch (e) {
+        return 1;
+    }
+}
+
+// ===== 永続化（学習記録・学年ごと） =====
+// 5年生は学年えらび導入前からのキーをそのまま使い、既存の学習記録を引き継ぐ
+function progressStorageKey(grade) {
+    return grade === 5 ? 'kanji-quest-progress-v1' : `kanji-quest-progress-g${grade}-v1`;
+}
 
 function defaultProgress() {
     return {
@@ -16,9 +42,9 @@ function defaultProgress() {
     };
 }
 
-function loadProgress() {
+function loadProgress(grade) {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(progressStorageKey(grade));
         if (!raw) return defaultProgress();
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed.learnedIds)) return defaultProgress();
@@ -29,10 +55,22 @@ function loadProgress() {
 }
 
 function saveProgress() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    localStorage.setItem(progressStorageKey(currentGrade), JSON.stringify(progress));
 }
 
-let progress = loadProgress();
+let currentGrade = loadSelectedGrade();
+let kanjiList = gradeKanjiList(currentGrade);
+let kanjiById = gradeKanjiById(currentGrade);
+let progress = loadProgress(currentGrade);
+
+function selectGrade(grade) {
+    currentGrade = grade;
+    try { localStorage.setItem(GRADE_STORAGE_KEY, String(grade)); } catch (e) { /* 保存できなくても遊べる */ }
+    kanjiList = gradeKanjiList(grade);
+    kanjiById = gradeKanjiById(grade);
+    progress = loadProgress(grade);
+    renderTitle();
+}
 
 // ===== 日付ユーティリティ =====
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -116,9 +154,44 @@ function setHpBar(fillId, textId, hp, max) {
 
 function showHowToPlay() { show('howToPlayScreen'); }
 
+// ===== タイトル画面 =====
+const TITLE_STORY_LEAD = {
+    1: '漢字のなりたちと書き順を学び、',
+    2: '漢字の形と書き順を身につけ、',
+    3: '漢字の形と書き順を身につけ、',
+    4: '漢字をパーツに分解し、',
+    5: '漢字をパーツに分解し、',
+};
+
+function renderTitle() {
+    const sel = document.getElementById('gradeSelect');
+    sel.innerHTML = '';
+    GRADES.forEach(g => {
+        const btn = document.createElement('button');
+        btn.className = 'grade-btn' + (g === currentGrade ? ' active' : '');
+        btn.textContent = `${g}年`;
+        btn.addEventListener('click', () => selectGrade(g));
+        sel.appendChild(btn);
+    });
+
+    document.getElementById('titleStory').innerHTML = `
+        小学${currentGrade}年生の${kanjiList.length}字が眠る<br>
+        王国に、「丸暗記の霧」が<br>
+        立ちこめている。<br>
+        ${TITLE_STORY_LEAD[currentGrade]}<br>
+        熟語で使いこなす力で<br>
+        霧を晴らす勇者になろう！`;
+
+    // ステージマップは5年生専用、成長の街道は選んだ学年より下の学年のおさらい
+    document.getElementById('titleMapBtn').style.display = currentGrade === 5 ? '' : 'none';
+    document.getElementById('titleReviewBtn').style.display = currentGrade >= 2 ? '' : 'none';
+    document.getElementById('titleDexBtn').textContent = `📖 漢字ずかん（${kanjiList.length}字）`;
+}
+
 function exitBattle() {
     synthTimers.forEach(t => clearTimeout(t));
     synthTimers = [];
+    stopIntroStrokeBox();
     show('titleScreen');
 }
 
@@ -235,14 +308,14 @@ function buildTodayQueue() {
 
 function pickNextNewKanji(n) {
     if (n <= 0) return [];
-    return KANJI_LIST.filter(k => !progress.learnedIds.includes(k.id)).slice(0, n).map(k => k.id);
+    return kanjiList.filter(k => !progress.learnedIds.includes(k.id)).slice(0, n).map(k => k.id);
 }
 
 // 新出漢字は読み方・穴うめ・意味の3問すべてを出題する（字↔読みを双方向で
 // 想起させることで結びつきを強く定着させるため）。2つの熟語を使い分けて
 // 語彙のカバー範囲も広げる。
 function makeNewKanjiQuizItems(kanjiId) {
-    const k = KANJI_BY_ID[kanjiId];
+    const k = kanjiById[kanjiId];
     const readingCompound = k.compounds[0];
     const fillCompound = k.compounds[1] || k.compounds[0];
 
@@ -267,7 +340,7 @@ function makeNewKanjiQuizItems(kanjiId) {
         type: 'quiz', kanjiId, source: 'new', quizType: 'meaning',
         question: `つぎの意味を表す漢字は？\n「${k.meaning}」`,
         choices: shuffle([k.kanji, ...meaningDistractors]), answer: k.kanji,
-        explanation: `正解は「${k.kanji}」。${k.partsStory}`,
+        explanation: `正解は「${k.kanji}」。${kanjiStory(k)}`,
     };
 
     return [readingItem, fillItem, meaningItem];
@@ -317,7 +390,7 @@ function renderNotebook() {
     const today = todayStr();
     entries.sort((a, b) => a[1].dueDate.localeCompare(b[1].dueDate));
     list.innerHTML = entries.map(([id, rec]) => {
-        const k = KANJI_BY_ID[id];
+        const k = kanjiById[id];
         const isDue = rec.dueDate <= today;
         return `<div class="notebook-item">
             <div class="notebook-kanji-info">
@@ -373,7 +446,7 @@ function openReviewMap() {
 function renderReviewMap() {
     const grid = document.getElementById('reviewGradeGrid');
     grid.innerHTML = '';
-    REVIEW_GRADES.forEach(g => {
+    REVIEW_GRADES.filter(g => g.grade < currentGrade).forEach(g => {
         const pool = REVIEW_KANJI_LIST.filter(k => k.grade === g.grade);
         const masteredInGrade = pool.filter(k => reviewProgress.masteredIds.includes(k.id)).length;
         const allMastered = pool.length > 0 && masteredInGrade === pool.length;
@@ -457,45 +530,27 @@ function pickReviewConfusableChars(k, n) {
 // ===== 漢字ずかん（いつでも振り返り） =====
 const DEX_SYNTH_IDS = { stage: 'dexSynthStage', result: 'dexSynthResult', card: 'dexKanjiInfoCard', replayBtn: 'dexReplayBtn' };
 
-const DEX_SOURCES = {
-    main: {
-        title: '📖 漢字ずかん',
-        subtitle: '5年生193字、いつでも見返せるよ。⭐は覚えた漢字。',
-        getList: () => KANJI_LIST,
-        getById: () => KANJI_BY_ID,
-        isLearned: (id) => progress.learnedIds.includes(id),
-    },
-    grade4: {
-        title: '📖 漢字ずかん（4年生）',
-        subtitle: '4年生202字、いつでも見返せるよ。⭐はおさらいでマスターした漢字。',
-        getList: () => REVIEW_KANJI_LIST.filter(k => k.grade === 4),
-        getById: () => REVIEW_KANJI_BY_ID,
-        isLearned: (id) => reviewProgress.masteredIds.includes(id),
-    },
-};
-
-let dexSource = 'main';
-let currentDexList = [];
-let currentDexById = {};
 let currentDexKanjiId = null;
+let dexStrokeBox = null;
 
-function openKanjiDex(source) {
-    dexSource = source;
-    const cfg = DEX_SOURCES[source];
-    currentDexList = cfg.getList();
-    currentDexById = cfg.getById();
-    document.getElementById('dexTitle').textContent = cfg.title;
-    document.getElementById('dexSubtitle').textContent = cfg.subtitle;
+// 1〜4年生は「成長の街道」でマスターした字も覚えた扱いにする
+function isDexLearned(id) {
+    if (progress.learnedIds.includes(id)) return true;
+    return currentGrade < 5 && reviewProgress.masteredIds.includes(id);
+}
+
+function openKanjiDex() {
+    document.getElementById('dexTitle').textContent = `📖 漢字ずかん（${currentGrade}年生）`;
+    document.getElementById('dexSubtitle').textContent = `${currentGrade}年生${kanjiList.length}字、いつでも見返せるよ。⭐は覚えた漢字。`;
     renderDexGrid();
     show('kanjiDexScreen');
 }
 
 function renderDexGrid() {
-    const cfg = DEX_SOURCES[dexSource];
     const grid = document.getElementById('dexGrid');
     grid.innerHTML = '';
-    currentDexList.forEach(k => {
-        const learned = cfg.isLearned(k.id);
+    kanjiList.forEach(k => {
+        const learned = isDexLearned(k.id);
         const item = document.createElement('div');
         item.className = 'dex-item' + (learned ? ' learned' : '');
         item.innerHTML = `${k.kanji}${learned ? '<span class="dex-star">⭐</span>' : ''}`;
@@ -506,42 +561,48 @@ function renderDexGrid() {
 
 function openDexDetail(kanjiId) {
     currentDexKanjiId = kanjiId;
-    renderDexDetail();
     show('kanjiDexDetailScreen');
+    renderDexDetail();
 }
 
 function renderDexDetail() {
-    const k = currentDexById[currentDexKanjiId];
+    const k = kanjiById[currentDexKanjiId];
     document.getElementById('dexKanjiInfoCard').classList.remove('show');
     document.getElementById('dexKanjiInfoCard').innerHTML = '';
     document.getElementById('dexReplayBtn').style.display = 'none';
-    const idx = currentDexList.findIndex(x => x.id === currentDexKanjiId);
-    document.getElementById('dexKanjiCounter').textContent = `${idx + 1} / ${currentDexList.length}`;
+    const idx = kanjiList.findIndex(x => x.id === currentDexKanjiId);
+    document.getElementById('dexKanjiCounter').textContent = `${idx + 1} / ${kanjiList.length}`;
     runSynthesisAnimation(k, DEX_SYNTH_IDS);
+    if (dexStrokeBox) dexStrokeBox.stop();
+    dexStrokeBox = createStrokeBox(document.getElementById('dexStrokeArea'), k.kanji);
+    dexStrokeBox.showAll();
 }
 
 function replayDexSynthesis() {
     if (currentDexKanjiId == null) return;
-    const k = currentDexById[currentDexKanjiId];
+    const k = kanjiById[currentDexKanjiId];
     document.getElementById('dexKanjiInfoCard').classList.remove('show');
     document.getElementById('dexReplayBtn').style.display = 'none';
     runSynthesisAnimation(k, DEX_SYNTH_IDS);
 }
 
+function playDexStrokeDemo() { if (dexStrokeBox) dexStrokeBox.playDemo(); }
+function startDexStrokePractice() { if (dexStrokeBox) dexStrokeBox.startPractice(); }
+
 function prevDexKanji() {
-    const idx = currentDexList.findIndex(k => k.id === currentDexKanjiId);
-    openDexDetail(currentDexList[(idx - 1 + currentDexList.length) % currentDexList.length].id);
+    const idx = kanjiList.findIndex(k => k.id === currentDexKanjiId);
+    openDexDetail(kanjiList[(idx - 1 + kanjiList.length) % kanjiList.length].id);
 }
 function nextDexKanji() {
-    const idx = currentDexList.findIndex(k => k.id === currentDexKanjiId);
-    openDexDetail(currentDexList[(idx + 1) % currentDexList.length].id);
+    const idx = kanjiList.findIndex(k => k.id === currentDexKanjiId);
+    openDexDetail(kanjiList[(idx + 1) % kanjiList.length].id);
 }
 
 // ===== 学習データのリセット =====
 function resetAllProgress() {
-    const ok = confirm('学習データを全てリセットします。\n（覚えた漢字・まちがいノート・連続日数・おさらいの進捗が全て消えます）\n\nよろしいですか？');
+    const ok = confirm('学習データを全てリセットします。\n（全学年の覚えた漢字・まちがいノート・連続日数・おさらいの進捗が全て消えます）\n\nよろしいですか？');
     if (!ok) return;
-    localStorage.removeItem(STORAGE_KEY);
+    GRADES.forEach(g => localStorage.removeItem(progressStorageKey(g)));
     localStorage.removeItem(REVIEW_STORAGE_KEY);
     progress = defaultProgress();
     reviewProgress = defaultReviewProgress();
@@ -551,7 +612,8 @@ function resetAllProgress() {
 // ===== バトル共通処理 =====
 function beginBattle() {
     if (gs.queue.length === 0) {
-        openMap();
+        if (gs.mode === 'stage') openMap();
+        else show('titleScreen');
         return;
     }
     gs.qIdx = 0;
@@ -617,26 +679,32 @@ const BATTLE_SYNTH_IDS = { stage: 'synthStage', result: 'synthResult', card: 'ka
 
 function renderIntro(item) {
     currentIntroKanjiId = item.kanjiId;
-    const k = KANJI_BY_ID[item.kanjiId];
-    document.getElementById('writeOnceKanji').textContent = k.kanji;
-    document.getElementById('writeOnceKanjiStep').style.display = 'block';
+    const k = kanjiById[item.kanjiId];
+    stopIntroStrokeBox();
+    document.getElementById('introLearnStep').style.display = 'block';
+    document.getElementById('strokeStep').style.display = 'none';
     document.getElementById('writeOnceCompoundStep').style.display = 'none';
+    document.getElementById('toStrokeStepBtn').style.display = 'none';
     const card = document.getElementById('kanjiInfoCard');
     card.classList.remove('show');
     card.innerHTML = '';
     document.getElementById('synthReplayBtn').style.display = 'none';
-    runSynthesisAnimation(k, BATTLE_SYNTH_IDS);
+    runSynthesisAnimation(k, BATTLE_SYNTH_IDS, () => {
+        document.getElementById('toStrokeStepBtn').style.display = 'inline-block';
+    });
 }
 
 function replaySynthesis() {
     if (currentIntroKanjiId == null) return;
-    const k = KANJI_BY_ID[currentIntroKanjiId];
+    const k = kanjiById[currentIntroKanjiId];
     document.getElementById('kanjiInfoCard').classList.remove('show');
     document.getElementById('synthReplayBtn').style.display = 'none';
     runSynthesisAnimation(k, BATTLE_SYNTH_IDS);
 }
 
-function runSynthesisAnimation(k, ids) {
+// 漢字の登場演出。1年生は絵→漢字のなりたち、パーツデータのある字はパーツ合体、
+// それ以外はそのまま表示する。
+function runSynthesisAnimation(k, ids, onReveal) {
     synthTimers.forEach(t => clearTimeout(t));
     synthTimers = [];
 
@@ -646,10 +714,49 @@ function runSynthesisAnimation(k, ids) {
     resultEl.textContent = '';
     resultEl.classList.remove('show');
 
+    const floatEls = k.origin ? makeOriginEls(k, stage, resultEl)
+        : (k.parts && k.parts.length) ? makePartEls(k, stage, resultEl)
+        : [];
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            floatEls.forEach(({ el, label }) => { el.style.opacity = '1'; if (label) label.style.opacity = '1'; });
+        });
+    });
+
+    if (floatEls.length) {
+        synthTimers.push(setTimeout(() => {
+            floatEls.forEach(({ el, label }) => {
+                el.style.transform = 'translate(0,0) scale(0.6)';
+                el.style.opacity = '0';
+                if (label) label.style.opacity = '0';
+            });
+        }, 1800));
+    }
+
+    synthTimers.push(setTimeout(() => {
+        resultEl.textContent = k.kanji;
+        resultEl.classList.add('show');
+        showKanjiInfoCard(k, ids.card);
+        document.getElementById(ids.replayBtn).style.display = floatEls.length ? 'inline-block' : 'none';
+        if (onReveal) onReveal();
+    }, floatEls.length ? 3000 : 300));
+}
+
+function makeOriginEls(k, stage, resultEl) {
+    const el = document.createElement('div');
+    el.className = 'synth-part synth-origin';
+    el.textContent = k.origin.emoji;
+    el.style.transform = 'translate(0,0) scale(1)';
+    stage.insertBefore(el, resultEl);
+    return [{ el }];
+}
+
+function makePartEls(k, stage, resultEl) {
     const positions = k.parts.length >= 4
         ? [{ x: -70, y: -25 }, { x: 70, y: -25 }, { x: -70, y: 60 }, { x: 70, y: 60 }]
         : [{ x: -70, y: -10 }, { x: 70, y: -10 }, { x: 0, y: 55 }];
-    const partEls = k.parts.map((p, i) => {
+    return k.parts.map((p, i) => {
         const el = document.createElement('div');
         el.className = 'synth-part';
         el.textContent = p.char;
@@ -665,27 +772,13 @@ function runSynthesisAnimation(k, ids) {
 
         return { el, label };
     });
+}
 
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            partEls.forEach(({ el, label }) => { el.style.opacity = '1'; label.style.opacity = '1'; });
-        });
-    });
-
-    synthTimers.push(setTimeout(() => {
-        partEls.forEach(({ el, label }) => {
-            el.style.transform = 'translate(0,0) scale(0.6)';
-            el.style.opacity = '0';
-            label.style.opacity = '0';
-        });
-    }, 1800));
-
-    synthTimers.push(setTimeout(() => {
-        resultEl.textContent = k.kanji;
-        resultEl.classList.add('show');
-        showKanjiInfoCard(k, ids.card);
-        document.getElementById(ids.replayBtn).style.display = 'inline-block';
-    }, 3000));
+// なりたち（1年生）・パーツの話（4・5年生）。どちらもない学年は読みで代用する
+function kanjiStory(k) {
+    if (k.origin) return k.origin.story;
+    if (k.partsStory) return k.partsStory;
+    return `音読み: ${k.onyomi.join('、') || 'なし'}／訓読み: ${k.kunyomi.join('、') || 'なし'}`;
 }
 
 function showKanjiInfoCard(k, cardId) {
@@ -693,23 +786,63 @@ function showKanjiInfoCard(k, cardId) {
     const compoundsHtml = k.compounds
         .map(c => `<span class="compound-chip"><b>${c.word}</b>（${c.reading}）… ${c.sentence}</span>`)
         .join('');
+    const storyHtml = k.origin ? `<div class="kanji-story">🖼️ なりたち：${k.origin.story}</div>`
+        : k.partsStory ? `<div class="kanji-story">🧩 ${k.partsStory}</div>`
+        : '';
     card.innerHTML = `
         <div class="kanji-reading-row">
             <span>音読み: ${k.onyomi.join('、') || 'なし'}</span>
             <span>訓読み: ${k.kunyomi.join('、') || 'なし'}</span>
+            <span>画数: ${strokeCount(k.kanji)}画</span>
         </div>
         <div class="kanji-meaning">${k.meaning}</div>
-        <div class="kanji-story">🧩 ${k.partsStory}</div>
+        ${storyHtml}
         <div>${compoundsHtml}</div>`;
     requestAnimationFrame(() => card.classList.add('show'));
 }
 
+// ===== 新出漢字：書き順（お手本アニメ → 判定つきで1画ずつ書く） =====
+let introStrokeBox = null;
+
+function stopIntroStrokeBox() {
+    if (introStrokeBox) introStrokeBox.stop();
+    introStrokeBox = null;
+}
+
+function openIntroStrokeStep() {
+    const k = kanjiById[currentIntroKanjiId];
+    synthTimers.forEach(t => clearTimeout(t));
+    synthTimers = [];
+    document.getElementById('introLearnStep').style.display = 'none';
+    document.getElementById('strokeStep').style.display = 'block';
+    document.getElementById('strokeNextBtn').style.display = 'none';
+    document.getElementById('strokeStepTitle').textContent = `「${k.kanji}」の書き順（${strokeCount(k.kanji)}画）`;
+    document.getElementById('introPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    introStrokeBox = createStrokeBox(document.getElementById('introStrokeArea'), k.kanji);
+    playIntroStrokeDemo();
+}
+
+function playIntroStrokeDemo() {
+    introStrokeBox.playDemo(() => {
+        introStrokeBox.startPractice(() => {
+            document.getElementById('strokeNextBtn').style.display = 'inline-block';
+        });
+    });
+}
+
+function replayIntroStrokeDemo() {
+    if (!introStrokeBox) return;
+    document.getElementById('strokeNextBtn').style.display = 'none';
+    playIntroStrokeDemo();
+}
+
 function confirmWrittenKanji() {
-    const k = KANJI_BY_ID[currentIntroKanjiId];
+    const k = kanjiById[currentIntroKanjiId];
+    stopIntroStrokeBox();
     const compound = k.compounds[0];
     document.getElementById('writeOnceCompound').textContent = compound.word;
     document.getElementById('writeOnceCompoundReading').textContent = `（${compound.reading}）`;
-    document.getElementById('writeOnceKanjiStep').style.display = 'none';
+    document.getElementById('strokeStep').style.display = 'none';
     document.getElementById('writeOnceCompoundStep').style.display = 'block';
 }
 
@@ -717,7 +850,7 @@ function confirmWrittenCompound() { advanceQueue(); }
 
 // ===== クイズ生成 =====
 function makeQuizItem(kanjiId, source) {
-    const k = KANJI_BY_ID[kanjiId];
+    const k = kanjiById[kanjiId];
     const types = ['reading', 'meaning', 'fillBlank'];
     if (progress.learnedIds.includes(kanjiId)) types.push('writing');
     const quizType = types[Math.floor(Math.random() * types.length)];
@@ -737,7 +870,7 @@ function makeQuizItem(kanjiId, source) {
             type: 'quiz', kanjiId, source, quizType, inputType: 'writing',
             question: `${blanked}\n（${compound.reading}）\n＿に入る漢字を書いてみよう`,
             answer: k.kanji,
-            explanation: `正解は「${k.kanji}」。「${compound.word}（${compound.reading}）」だね。${k.partsStory}`,
+            explanation: `正解は「${k.kanji}」。「${compound.word}（${compound.reading}）」だね。${k.origin || k.partsStory ? kanjiStory(k) : ''}`,
         };
     }
     if (quizType === 'meaning') {
@@ -747,7 +880,7 @@ function makeQuizItem(kanjiId, source) {
             type: 'quiz', kanjiId, source, quizType,
             question: `つぎの意味を表す漢字は？\n「${k.meaning}」`,
             choices, answer: k.kanji,
-            explanation: `正解は「${k.kanji}」。${k.partsStory}`,
+            explanation: `正解は「${k.kanji}」。${kanjiStory(k)}`,
         };
     }
     const distractors = pickConfusableChars(k, 3);
@@ -761,14 +894,15 @@ function makeQuizItem(kanjiId, source) {
     };
 }
 
+// まぎらわしい字のデータ（5年生のみ）があれば優先し、足りない分は同じ学年の字から選ぶ
 function pickConfusableChars(k, n) {
-    const ids = k.confusables.slice();
-    const pool = KANJI_LIST.map(x => x.id).filter(id => id !== k.id && !ids.includes(id));
+    const ids = (k.confusables || []).slice();
+    const pool = kanjiList.map(x => x.id).filter(id => id !== k.id && !ids.includes(id));
     while (ids.length < n && pool.length) {
         const idx = Math.floor(Math.random() * pool.length);
         ids.push(pool.splice(idx, 1)[0]);
     }
-    return shuffle(ids).slice(0, n).map(id => KANJI_BY_ID[id].kanji);
+    return shuffle(ids).slice(0, n).map(id => kanjiById[id].kanji);
 }
 
 function quizTypeLabel(t) {
@@ -947,9 +1081,9 @@ function clearWritingCanvas() {
 
 function revealWritingAnswer() {
     const item = gs.queue[gs.qIdx];
-    document.getElementById('writingAnswerKanji').textContent = item.answer;
     document.getElementById('writingReveal').style.display = 'block';
     document.getElementById('writingRevealBtn').style.display = 'none';
+    createStrokeBox(document.getElementById('writingAnswerStrokeArea'), item.answer).playDemo();
 }
 
 function submitWritingSelfGrade(isCorrect) {
@@ -994,7 +1128,9 @@ function updateStreak() {
 }
 
 function checkAllMastered() {
-    if (progress.masteredIds.length >= KANJI_LIST.length && Object.keys(progress.reviewQueue).length === 0) {
+    if (progress.masteredIds.length >= kanjiList.length && Object.keys(progress.reviewQueue).length === 0) {
+        document.getElementById('masteredTitle').textContent = `🏆 ${currentGrade}年生 全${kanjiList.length}字マスター！ 🏆`;
+        document.getElementById('masteredCount').textContent = `${kanjiList.length} / ${kanjiList.length}字`;
         document.getElementById('masteredStreak').textContent = progress.streak + '日';
         setTimeout(() => show('allMasteredScreen'), 600);
     }
@@ -1054,6 +1190,12 @@ function retryBattle() {
     beginBattle();
 }
 
+function leaveGameOver() {
+    if (gs.mode === 'stage') openMap();
+    else if (gs.mode === 'reviewGrade') openReviewMap();
+    else show('titleScreen');
+}
+
 // ===== エフェクト =====
 function popDamage(text, isPlayer) {
     const el = document.getElementById(isPlayer ? 'playerDmgPop' : 'dmgPop');
@@ -1087,4 +1229,7 @@ function flashPlayer() {
 }
 
 // ===== 起動 =====
-window.addEventListener('load', () => show('titleScreen'));
+window.addEventListener('load', () => {
+    renderTitle();
+    show('titleScreen');
+});
